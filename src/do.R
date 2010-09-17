@@ -25,9 +25,11 @@ sim.draft.stats <- getNodeSet(doc, "//div/table[@class='adp']")
 sim.table.stats <- lapply(sim.draft.stats, readHTMLTable, header = TRUE,
   stringsAsFactors = FALSE)[[1]]
 
-our.draft.stats <- read.csv("../data/ffldraft2010.csv", header = T)
+our.draft.stats <- read.csv("../data/ffldraft2010.csv", header = T, 
+							stringsAsFactors = F)
 n <- length(our.draft.stats$Player.Name)
-
+draft.df <- data.frame(player = 1:n, owner = 1:n, sim.pick = 1:n,
+	 										 pick = 1:n, sim.std = 1:n, Rnd = 1:n)
 for (i in 1:n){
   draftee <- strsplit(as.character(our.draft.stats$Player.Name[i]), ",")[[1]]
   ifelse(draftee[2] == ' D', {
@@ -39,29 +41,34 @@ for (i in 1:n){
     {player <- draftee[1]}
   )
   sim.player.stats <- sim.table.stats[sim.table.stats$Name == player, ]
-  print(c(player, as.numeric(sim.player.stats$Overall)))
+  draft.df[i,] <- c(player, our.draft.stats$Owner[i],
+		  		as.numeric(sim.player.stats$Overall)[1], our.draft.stats$Pick..[i], 
+		  		as.numeric(sim.player.stats$Std.Dev)[1], our.draft.stats$Rnd[i])
 }
 
+## Edit Mike Williams & Steve Smith
+draft.df[44,c(3,5)] <- c(36.3, 6.1)
+draft.df[160,c(3,5)] <- c(148.9, 19.0)
 
-nset.attendance <- getNodeSet(doc, 
-  "//div/table[@class='sortable-first stats attendance']")
-table.attendance <- lapply(nset.attendance, readHTMLTable, header = FALSE)
-df.stats <- table.stats[[1]]
-df.attendance <- table.attendance[[1]]
-df.stats[order(df.stats$V1), ]
-df.attendance[order(df.attendance$V1), ]
-df.total <- merge(df.stats, df.attendance, by = "V1", all = TRUE)
-df.total$year <- rep(years[i], length(df.total$V1))  
-df.final <- rbind(df.final, df.total)
-out.string.2 <- paste(Sys.time(), paste(" -- Year: ", years[i], sep = ""), 
-                    sep = "")
+draft.df$sim.std <- as.numeric(draft.df$sim.std)
+draft.df$sim.pick <- as.numeric(draft.df$sim.pick)
+draft.df$pick <- as.numeric(draft.df$pick)
+draft.df$Rnd <- as.numeric(draft.df$Rnd)
 
-auth <- getGoogleAuth("rtelmore@gmail.com", p.wd)
 
-con <- getGoogleDocsConnection(auth, service = "wise")
-sheets <- getDocs(con)
 
-ff.dat <- sheetAsMatrix(sheets$ffldraft2010, "data.frame")
+draft.df$score <- (draft.df$pick - draft.df$sim.pick)/draft.df$sim.std
 
-ff.ws <- getWorksheets("ffldraft2010", sheet.con)
+ggplot(data = draft.df, aes(x = Rnd, y = owner, fill = score)) + 
+  geom_tile() + 
+  scale_fill_continuous("score") + 
+	scale_x_continuous("round")
 
+ggsave("../fig/std_scores.pdf", hei = 7, wid = 7)
+
+ggplot(data = draft.df, aes(x = Rnd, y = score, col = owner)) + 
+  geom_line() + 
+  scale_fill_continuous("score")
+
+ggplot(data = draft.df, aes(x = pick, y = score, col = owner)) + 
+  geom_point() 
